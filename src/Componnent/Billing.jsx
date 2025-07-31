@@ -20,7 +20,7 @@ const languages = {
     invalidEmail: "Invalid email address",
     invalidAmount: "Enter a valid amount",
   },
-  // Add other languages here if needed
+  // Add more languages here if needed
 };
 
 export default function Billing() {
@@ -34,30 +34,29 @@ export default function Billing() {
 
   const [errors, setErrors] = useState({});
   const [lang, setLang] = useState("en");
+  const [history, setHistory] = useState(() => {
+    return JSON.parse(localStorage.getItem("billingHistory")) || [];
+  });
+
   const t = languages[lang];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setClient({ ...client, [name]: value });
-    setErrors({ ...errors, [name]: "" }); // Clear error on change
+    setErrors({ ...errors, [name]: "" });
   };
 
   const validate = () => {
-    let newErrors = {};
-
+    const newErrors = {};
     if (!client.name.trim()) newErrors.name = t.required;
     if (!client.email.trim()) {
       newErrors.email = t.required;
-    } else if (!/^\S+@\S+\.\S+$/.test(client.email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.email)) {
       newErrors.email = t.invalidEmail;
     }
-
     if (!client.address.trim()) newErrors.address = t.required;
     if (!client.service.trim()) newErrors.service = t.required;
-
-    if (!client.amount) {
-      newErrors.amount = t.required;
-    } else if (isNaN(client.amount) || parseFloat(client.amount) <= 0) {
+    if (!client.amount || isNaN(client.amount) || Number(client.amount) <= 0) {
       newErrors.amount = t.invalidAmount;
     }
 
@@ -79,13 +78,29 @@ export default function Billing() {
     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`Invoice_${client.name || "Client"}.pdf`);
+
+    const fileName = `Invoice_${client.name || "Client"}.pdf`;
+    pdf.save(fileName);
+
+    const newEntry = {
+      id: Date.now(),
+      name: client.name,
+      email: client.email,
+      date: new Date().toLocaleDateString(),
+      service: client.service,
+      amount: client.amount,
+      fileName,
+    };
+
+    const updatedHistory = [newEntry, ...history];
+    localStorage.setItem("billingHistory", JSON.stringify(updatedHistory));
+    setHistory(updatedHistory);
   };
 
   return (
     <div className="max-w-5xl mx-auto mt-16 px-4 py-10 font-sans">
-      {/* Language Selection */}
-      <div className="flex justify-end flex-wrap gap-2 mb-4">
+      {/* Language Switch */}
+      <div className="flex justify-end gap-2 mb-4">
         {Object.keys(languages).map((code) => (
           <button
             key={code}
@@ -140,9 +155,8 @@ export default function Billing() {
         </div>
       </div>
 
-      {/* Invoice View */}
+      {/* Invoice Display */}
       <div id="invoice-section" className="bg-white rounded-xl shadow-lg overflow-hidden border text-sm md:text-base">
-        {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <img src={Logo} alt="Logo" className="w-20 h-auto" />
           <div className="text-center sm:text-right text-xs md:text-sm">
@@ -153,13 +167,11 @@ export default function Billing() {
           </div>
         </div>
 
-        {/* Watermark */}
         <div className="relative p-6 space-y-6 text-gray-700">
           <div className="absolute text-6xl md:text-8xl font-extrabold opacity-5 rotate-45 top-1/2 left-1/4 pointer-events-none z-0">
             POEAGE
           </div>
 
-          {/* Invoice Header */}
           <div className="flex flex-col md:flex-row justify-between border-b pb-4 relative z-10">
             <h3 className="text-xl font-bold">{t.invoice}</h3>
             <div className="text-right space-y-1">
@@ -168,7 +180,6 @@ export default function Billing() {
             </div>
           </div>
 
-          {/* Client & Billing Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
             <div>
               <h4 className="font-semibold mb-2">{t.clientInfo}</h4>
@@ -181,9 +192,40 @@ export default function Billing() {
               <p><strong>{t.service}:</strong> {client.service}</p>
               <p><strong>{t.amount}:</strong> ₹{client.amount}</p>
             </div>
+
+            {history.length > 0 && (
+              <div className="mt-10 bg-white border rounded-lg p-6 shadow-sm col-span-full">
+                <h3 className="text-lg font-semibold mb-4 text-slate-800">Download History</h3>
+                <div className="overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left bg-slate-100">
+                        <th className="p-2">Date</th>
+                        <th className="p-2">Client</th>
+                        <th className="p-2">Email</th>
+                        <th className="p-2">Service</th>
+                        <th className="p-2">Amount</th>
+                        <th className="p-2">File</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((item) => (
+                        <tr key={item.id} className="border-t hover:bg-slate-50">
+                          <td className="p-2">{item.date}</td>
+                          <td className="p-2">{item.name}</td>
+                          <td className="p-2">{item.email}</td>
+                          <td className="p-2">{item.service}</td>
+                          <td className="p-2">₹{item.amount}</td>
+                          <td className="p-2">{item.fileName}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Footer */}
           <div className="border-t pt-4 text-center text-xs italic text-gray-500 relative z-10">
             {t.thanks}
           </div>
